@@ -8,28 +8,34 @@ library(lmtest)
 library(car)
 library(sandwich)
 
+
 #Load the data
-setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Health and Diet Data/')
+#setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Health and Diet Data/')
+setwd('C:/Users/rthamman/Dropbox (Personal)/Berkeley/Courses/W271/Labs/Lab 3/Git/Data')
 getwd()
 
 diet.data <- read.csv("diet-forcsv - Sheet 1.csv")
-
-setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Data Validation/')
-getwd()
 
 data.validation.country.mapping <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Country_Mapping")
 data.validation.life_expect <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Life Expectancy")
 data.validation.growth_rate <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Population Growth Rate")
 
 #*************************************
+
+#Missing values check
+cat("Number of rows: ",nrow(diet.data))
+cat("Number of complete cases: ",nrow(diet.data[complete.cases(diet.data),]))
+
+#There are no missing values
+
 #Univariate EDA
 
 #Wine consumption
-#Summary statistics for variablees of interest
+#Summary statistics for variables of interest
 summary(diet.data$Wine..kcal.day.)
 sum(diet.data$Wine..kcal.day. == 0)
 
-#There are 32 countries with zero wine consumption.
+#There are 32 countries with zero wine consumption. This could be because of bottom coding to cover for null values.
 wine.hist <- ggplot(data = diet.data, aes(x = Wine..kcal.day.))
 wine.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Wine Calories per Day") + labs(y = "Number of Countries")
 
@@ -160,6 +166,17 @@ coeftest(wine.model.1, vcov = vcovHC)
 #Our theoretical foundation could also support the use of the generalized alcohol consumption variable as the main independent variable in the model as it may be able to extend our hypothesis to cultures where wine consumption is not common, but instead other alcoholic beverages are consumed at group meals.   
 
 
+#Model 1.1 - parsimonious model - Healthy life expectancy ~ wine (Testing Healthy life expectancy as a proxy for Life expectancy)
+#Start with a simple linear regression and build up from there comparing models along the way.
+wine.model.1.1 <- lm(diet.data$Healthy.life.expectancy..HALE..at.birth..years..both.sexes ~ Wine..kcal.day., data = diet.data)
+summary(wine.model.1.1)
+plot(wine.model.1.1)
+bptest(wine.model.1.1)
+durbinWatsonTest(wine.model.1.1)
+
+#Comment on using Healthy life expectancy instead of Life expectancy
+#Outcome of the analysis is very similar to Model #1. This validates the data Healty life expectancy and Life expectancy are consistent.
+
 #Model 2 - parsimonious model using alcohol consumption- life expectancy ~ alcohol
 alc.model.1 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Alcoholic.Beverages..kcal.day., data = diet.data)
 summary(alc.model.1)
@@ -195,7 +212,7 @@ coeftest(alc.model.2, vcov = vcovHC)
 #Comment on the model including a wealth control.
 #This model drastically changes the impact of alcoholic beverage consumption on life expectancy.
 #The coefficient estimate of the impact of alcoholic beverage consumption on life expectancy decreases to .006 and is no longer statistically significant.
-#Heteroskedasticity of errors and serial correlation continu to be a problem.
+#Heteroskedasticity of errors and serial correlation continue to be a problem.
 #The residuals vs. fitted plot also seems to show a violation of the zero conditional mean assumption.
 #The presence of heteroskedasticity of errors and a violation of the zero conditional mean assumption may indicate a non-linear relationship in the population.
 
