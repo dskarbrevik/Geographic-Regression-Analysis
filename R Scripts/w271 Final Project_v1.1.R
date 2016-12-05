@@ -8,6 +8,38 @@ library(lmtest)
 library(car)
 library(sandwich)
 
+#Research Question:
+#Do people who live in cultures that drink more wine and eat more dessert live longer lives on average?
+
+###Dataset Used: World Nutrition Data
+#.	Dataset has one "observation per country, but more than 50 countries 
+#.	We don't have a lot of information on how this data was acquired, but a way to validate it is by crosschecking with another more documented dataset 
+#(http://data.worldbank.org/datacatalog/Healthnutritionandpopulationstatistics). 
+#.	Check that total calorie consumption is greater than or equal to the sum of calories in all of the individual food categories.
+
+##Motivation/Thoughts about this research: 
+#.	Some research has seemed to show that moderate wine consumption seems to be associated with a lower incidence of heart disease and potentially 
+#longer life spans (http://www.telegraph.co.uk/news/health/11066516/Glassofwinewithdinnerhelpsyoulivelongerscientistsclaim.html).                                                                                                                                               
+
+#.	Critiques of this research are that the wine's effect on health outcomes is not a causal effect, but instead that the true underlying effect is more related to stronger social ties and wine consumption is simply associated with having a strong social network and taking more meals with family and friends.
+
+#.	The idea behind the main research question is to investigate the idea that cultures where people take more meals with family and friends have better health outcomes.
+
+#.	We will use wine consumption and potentially sugar consumption in some form to serve as proxy variables for eating more family meals or meals with friends.
+#.	The idea behind this is that you are more likely to drink wine or eat dessert with your meal when you are eating with friends or family.
+#.	Other research has indicated that strong social networks are an important factor in living a healthy life (http://uncnews.unc.edu/2016/01/04/socialnetworksasimportantasexerciseanddietacrossthespanofourlives/).
+
+
+##Exploratory Data Analysis, Domain Research, and Potential Model
+#.	Look at correlations between wine / alcohol and sugar consumption and life expectancy
+#.	Check that the data makes sense 
+#.	Will want to consider the possibility of nonlinear effects of wine / alcohol and sugar consumption on life expectancy at birth
+#.	Control for obesity prevalence
+#.	Consider interaction term between wine / alcohol consumption and sugar consumption
+#.	Perhaps one or the other could have a negative effect individually, but moderate consumption of both may be an even better proxy for taking more meals with family and friends than moderate consumption of one or the other
+
+
+
 
 #Load the data
 #setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Health and Diet Data/')
@@ -166,7 +198,11 @@ coeftest(wine.model.1, vcov = vcovHC)
 #Our theoretical foundation could also support the use of the generalized alcohol consumption variable as the main independent variable in the model as it may be able to extend our hypothesis to cultures where wine consumption is not common, but instead other alcoholic beverages are consumed at group meals.   
 
 
-#Model 1.1 - parsimonious model - Healthy life expectancy ~ wine (Testing Healthy life expectancy as a proxy for Life expectancy)
+#Model 1.1 - Sensitivity analysis - Healthy life expectancy ~ wine 
+#This analysis is to test if Healthy life expectancy is a proxy for Life expectancy
+#There is a high correlation between Healthy life expectancy and Life expectance at birth
+cor(diet.data$Healthy.life.expectancy..HALE..at.birth..years..both.sexes, diet.data$Life.expectancy.at.birth..years..both.sexes)
+
 #Start with a simple linear regression and build up from there comparing models along the way.
 wine.model.1.1 <- lm(diet.data$Healthy.life.expectancy..HALE..at.birth..years..both.sexes ~ Wine..kcal.day., data = diet.data)
 summary(wine.model.1.1)
@@ -286,18 +322,37 @@ coeftest(alc.model.5, vcov = vcovHC)
 
 
 
+#Conclusion
+
+#TBD
+
+# Pros
+
+# TBD
+
+#Cons:
+
+# Data Collection Constraints:
+
+#.	Health expectancy estimates based on selfreported health status information are generally not comparable across countries due to differences in survey instruments 
+#and cultural differences in reporting of health. 
+
+#.	Comparability problems with self-report health status data relate not only to differences in survey design and methods, but more fundamentally to
+#unmeasured differences in expectations and norms for health references
+
+#.	The meaning that different populations attach to the labels used for each of the response categories, such as mild, moderate or severe, in self-reported questions can vary greatly.
+
+#.	Calculation of healthy life expectancy at birth is based on age-specific death rates for a particular calendar period together with severity-adjusted health state prevalences by age. 
+
+# Data Collection Constraint Mitigation:
+
+#.	To mitigate the risk, data is validated against another datasource (http://data.worldbank.org/data-catalog/health-nutrition-and-population-statistics). Analysis is outlined in Data Validation Section above.
 
 
+# Control Variables:
 
-
-
-
-
-
-
-
-
-
+#.	We expect positive linear relationship between wine consumption and life expectancy only to a certain extent, beyond that there will be other negative implications. 
+#We need a control variable to balance that out. For example, a variable that captures negative impact on life expectancy when more calories are consumed.
 
 
 
