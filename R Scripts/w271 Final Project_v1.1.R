@@ -356,7 +356,7 @@ coeftest(alc.model.5, vcov = vcovHC)
 
 
 
-
+ 
 
 
 
