@@ -43,7 +43,8 @@ library(sandwich)
 
 #Load the data
 #setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Health and Diet Data/')
-setwd('C:/Users/rthamman/Dropbox (Personal)/Berkeley/Courses/W271/Labs/Lab 3/Git/Data')
+#setwd('C:/Users/rthamman/Dropbox (Personal)/Berkeley/Courses/W271/Labs/Lab 3/Git/Data')
+setwd('~/Documents/MIDS/w271/w271_final_proj/W271_Lab3/Data')
 getwd()
 
 diet.data <- read.csv("diet-forcsv - Sheet 1.csv")
@@ -116,6 +117,19 @@ cor(diet.data$Gross.national.income.per.capita..PPP.international..., diet.data$
 wine.gnp.scatter <- ggplot(data = diet.data, aes(x = Gross.national.income.per.capita..PPP.international..., y = Wine..kcal.day.))
 wine.gnp.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of GNP and Wine Consumption per Day")
 
+#further analysis of correlation between wine / alcohol consumption and life expectancy at birth
+i = 52
+wine.box <- boxplot(diet.data[i], main = "Boxplot of Wine Consumtion (kcal/day)")
+df <- cbind(diet.data[i], diet.data$Countries, diet.data$Life.expectancy.at.birth..years..both.sexes)
+names(df) <- c("wine_consumption", "countries", "life_expectancy")
+ordered_df <- df[order(df[1]),]
+ordered_df[ordered_df$wine_consumption > wine.box$stats[5],] 
+
+#Given the boxplot, these are the countries with "outlier-level" wine consumption, and their life expectancy.
+#Every country with high wine consumption has a life expectancy of over 70.
+#It is important to also notice, however, that all of these countries (minus Argentina) are a part of Europe,
+#where wine consumption is on average higher than the rest of the world. 
+#Given these results, despite the high correlation, it's hard to tell whether we see any good indication that greater wine consumption leads to longer life.
 
 #*************************************
 #Data validation
@@ -182,7 +196,7 @@ plot(wine.model.1)
 bptest(wine.model.1)
 durbinWatsonTest(wine.model.1)
 
-#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan test has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
 coeftest(wine.model.1, vcov = vcovHC)
 
 #Comment on parsimonious model.
@@ -195,8 +209,9 @@ coeftest(wine.model.1, vcov = vcovHC)
 #As a result, we may want to use the generalized alcohol consumption variable that has fewer observations of zero.
 #The Breusch pagan test confirms that heteroskedasticity of errors is borderline problematic.
 #The Durbin Watson test also gives a statistically significant result which means we should reject the null hypothesis of the test that the errors are not correlated. This is a bit of a strange result that we may want to look into further.
-#Our theoretical foundation could also support the use of the generalized alcohol consumption variable as the main independent variable in the model as it may be able to extend our hypothesis to cultures where wine consumption is not common, but instead other alcoholic beverages are consumed at group meals.   
-
+#Our theoretical foundation could also support the use of the generalized alcohol consumption variable as the main independent variable in the model as it may be able to extend our hypothesis to cultures where wine consumption is not common, but instead other alcoholic beverages are consumed at group meals.
+#Despite the statistically significant coefficient estimate, there is by no means any evidence of any casual relationship between wine consumption and life expectancy at this point. 
+#It is interesting to see that there is a relationship of some sort between the two variables, but this could be just a result of two variables affected caused by a third variable, or simply a phenomena due to chance, or any other reasonable scenario that can be thought up at this point.
 
 #Model 1.1 - Sensitivity analysis - Healthy life expectancy ~ wine 
 #This analysis is to test if Healthy life expectancy is a proxy for Life expectancy
@@ -222,7 +237,7 @@ plot(alc.model.1)
 bptest(alc.model.1)
 durbinWatsonTest(alc.model.1)
 
-#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan test has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
 coeftest(alc.model.1, vcov = vcovHC)
 
 #Comment on the second parsimonious model.
@@ -248,9 +263,12 @@ coeftest(alc.model.2, vcov = vcovHC)
 #Comment on the model including a wealth control.
 #This model drastically changes the impact of alcoholic beverage consumption on life expectancy.
 #The coefficient estimate of the impact of alcoholic beverage consumption on life expectancy decreases to .006 and is no longer statistically significant.
-#Heteroskedasticity of errors and serial correlation continue to be a problem.
+#Heteroskedasticity of errors and correlation continue to be a problem.
 #The residuals vs. fitted plot also seems to show a violation of the zero conditional mean assumption.
 #The presence of heteroskedasticity of errors and a violation of the zero conditional mean assumption may indicate a non-linear relationship in the population.
+#Including wealth as a control seems to have pulled away what had seemed to be a strong linear relationship between alcohol consumption and life expectancy. 
+#This is a reasonable result, as it seems that wealth would be a key driver for both alcohol consumption and life expectancy.
+#Adding the wealth control, therefore, reveals that alcohol consumption in an of itself may not be as strongly relate with life expectancy as previously suspected.
 
 
 #Model 4 - non-linear alcohol consumption with control for GNP - life expectancy ~ alcohol^2 + alcohol + GNP
@@ -266,13 +284,13 @@ durbinWatsonTest(alc.model.3)
 coeftest(alc.model.3, vcov = vcovHC)
 
 #Comment on model including non-linear effect of alcohol consumption
-#Including a non-linear effect of alcohol consumption in the model does not improve the problems with heteroskedasticity and serial correlation of errors.
+#Including a non-linear effect of alcohol consumption in the model does not improve the problems with heteroskedasticity and correlation of errors.
 #The alcoholic beverage consumption coefficient estimates are still not significant.
 #The residuals vs. fitted values plot shows heteroskedasticity of errors and the Breusch-Pagan test confirms the errors are heteroskedastic.
 #Therefore, we need to be sure to use heteroskedasticity robust standard errors to assess statistical significance of the coefficient estimates in the model.
-#The Durbin-Watson test shows that serial correlation remains a problem
+#The Durbin-Watson test shows that correlation remains a problem
 
-##NOTE FOR NEXT TEAM MEMBER TO PICK UP ANALYSIS - WHAT DO DO ABOUT SERIAL CORRELATION.
+##NOTE FOR NEXT TEAM MEMBER TO PICK UP ANALYSIS - WHAT DO DO ABOUT CORRELATION.
 
 
 #Model 5 - log transformation of alcohol consumption with control for GNP - life expectancy ~ log(alcohol) + GNP
@@ -294,7 +312,7 @@ coeftest(alc.model.4, vcov = vcovHC)
 
 #Comment on the model
 #Including a log transformation for alcoholic beverage consumption does not fix the problem of heteroskedasticity of errors as evidenced by the residuals vs. fitted values plot and the Breusch Pagan test.
-#The Durbin Watson test also shows that serial correlation of errors remains a problem.
+#The Durbin Watson test also shows that correlation of errors remains a problem.
 
 
 #Model 6 - log transformation of alcohol consumption with control for log transformation of GNP - life expectancy ~ log(alcohol) + log(GNP)
@@ -313,13 +331,13 @@ coeftest(alc.model.5, vcov = vcovHC)
 
 #Comment on the model.
 #Using a log transformation on GNP and alcohol consumption makes sense because each of these variables is positively skewed.
-#After making these transformations, the Durbin-Watson test shows that serially correlated errors seems to have been solved.
+#After making these transformations, the Durbin-Watson test shows that correlated errors seems to have been solved.
 #The residuals vs. fitted values plot shows that heteroskedasticity of errors continues to be a problem. The Breusch-Pagan test confirms this result.
 #Using heteroskedasticity robust standard errors, the coefficients are both statistically significant.
 #The coefficient estimate on log(alcohol consumption) is -1.271 which is statistically significant (p = .012 using heteroskedasticity robust errors).
 #The interpretation of this coefficient is that a one percent increase in alcohol consumption corresponds with a decrease of 1.271 years in life expectancy while holding GNP equal.
-
-
+#While this model outputs a statistically significant coefficient estimate of alcohol consumption, now its relationship with life expectancy is reversed, making it fairly suspect that there is a real meaningful relationship between the two variables. 
+#In contrast, the wealth control, the GNP, still retained a similar relationship with life expectancy, which is consistent with its coefficient estimates in previous models.
 
 
 #Conclusion
