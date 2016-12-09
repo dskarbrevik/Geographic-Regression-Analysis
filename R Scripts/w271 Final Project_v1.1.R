@@ -1,6 +1,6 @@
 #Name: Data exploration for w271 Final Project.
 #Date: November 2, 2016
-#Author: Nick Chen
+#Author: Nick Chen, Johnny Yeo, Rama Thamman, David Skarbrevik
 
 library(xlsx)
 library(ggplot2)
@@ -9,7 +9,11 @@ library(car)
 library(sandwich)
 
 #Research Question:
-#Do people who live in cultures that drink more wine and eat more dessert live longer lives on average?
+# Do people who live in cultures that drink more wine and eat more dessert live longer lives on average?
+
+# Perhaps a better question: Is alcohol consumption a valid proxy/indirect indicator of health in a country? 
+
+# Justification of using our dataset: Because our data has many indicators of health (GNP, life expectancy, obesity, calorie intake, etc.) as well as data on the amount of aclohol consumption of many countries, this is a great dataset to test if alcohol consumption is a valid indirect proxy for health in the way that GNP is.
 
 ###Dataset Used: World Nutrition Data
 #.	Dataset has one "observation per country, but more than 50 countries 
@@ -44,8 +48,8 @@ library(sandwich)
 #Load the data
 #setwd('~/Desktop/UC Berkeley/Applied Regression and Time Series Analysis/Lab 3/Health and Diet Data/')
 #setwd('C:/Users/rthamman/Dropbox (Personal)/Berkeley/Courses/W271/Labs/Lab 3/Git/Data')
-setwd('~/Documents/MIDS/w271/w271_final_proj/W271_Lab3/Data')
-getwd()
+#setwd('~/Documents/MIDS/w271/w271_final_proj/W271_Lab3/Data')
+#getwd()
 
 diet.data <- read.csv("diet-forcsv - Sheet 1.csv")
 
@@ -56,6 +60,15 @@ data.validation.growth_rate <- read.xlsx("Data from Third Parties for Validation
 #*************************************
 
 #Missing values check
+na.check = sapply(diet.data, function(x) sum(is.na(x))) # check specifically for NA values
+if(sum(na.check) == 0) 
+{
+        cat("No NA values in this data.")
+} else {
+na.check
+cat("There are a total of", sum(na.check), "NAs in the data.")
+}
+
 cat("Number of rows: ",nrow(diet.data))
 cat("Number of complete cases: ",nrow(diet.data[complete.cases(diet.data),]))
 
@@ -75,14 +88,14 @@ wine.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram
 #life expectancy
 summary(diet.data$Life.expectancy.at.birth..years..both.sexes)
 
-#The life expectancy variable shows a negative skew.
+#The life expectancy variable shows a negative skew (because no one lives to be 160).
 life.expect.all.hist <- ggplot(data = diet.data, aes(x = Life.expectancy.at.birth..years..both.sexes))
 life.expect.all.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Life Expectancy at Birth") + labs(y = "Number of Countries")
 
 
 #Alcoholic beverages calories per day
 summary(diet.data$Alcoholic.Beverages..kcal.day.)
-sum(diet.data$Alcoholic.Beverages..kcal.day. < 0)
+sum(diet.data$Alcoholic.Beverages..kcal.day. == 0)
 
 #Like wine, there are a lot of countries with zero or very little consumption of alcoholic beverages.
 Alcoholic.bevs.cals.hist <- ggplot(data = diet.data, aes(x = Alcoholic.Beverages..kcal.day.))
@@ -94,12 +107,6 @@ summary(diet.data$Gross.national.income.per.capita..PPP.international...)
 #GNP histogram
 GNP.hist <- ggplot(data = diet.data, aes(x = Gross.national.income.per.capita..PPP.international...))
 GNP.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of GNP") + labs(y = "Number of Countries")
-
-
-#Like wine, there are a lot of countries with zero or very little consumption of alcoholic beverages.
-Alcoholic.bevs.cals.hist <- ggplot(data = diet.data, aes(x = Alcoholic.Beverages..kcal.day.))
-Alcoholic.bevs.cals.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Alchoholic Beverages Calories per Day") + labs(y = "Number of Countries")
-
 
 #*************************************
 #Multivariate EDA
@@ -114,6 +121,7 @@ cor(diet.data$Alcoholic.Beverages..kcal.day., diet.data$Life.expectancy.at.birth
 cor(diet.data$Gross.national.income.per.capita..PPP.international..., diet.data$Wine..kcal.day.)
 cor(diet.data$Gross.national.income.per.capita..PPP.international..., diet.data$Alcoholic.Beverages..kcal.day.)
 
+#diet.data$Alcoholic.Beverages..kcal.day. > 0
 wine.gnp.scatter <- ggplot(data = diet.data, aes(x = Gross.national.income.per.capita..PPP.international..., y = Wine..kcal.day.))
 wine.gnp.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of GNP and Wine Consumption per Day")
 
@@ -290,7 +298,7 @@ coeftest(alc.model.3, vcov = vcovHC)
 #Therefore, we need to be sure to use heteroskedasticity robust standard errors to assess statistical significance of the coefficient estimates in the model.
 #The Durbin-Watson test shows that correlation remains a problem
 
-##NOTE FOR NEXT TEAM MEMBER TO PICK UP ANALYSIS - WHAT DO DO ABOUT CORRELATION.
+##NOTE FOR NEXT TEAM MEMBER TO PICK UP ANALYSIS - WHAT TO DO ABOUT CORRELATION.
 
 
 #Model 5 - log transformation of alcohol consumption with control for GNP - life expectancy ~ log(alcohol) + GNP
@@ -372,7 +380,29 @@ coeftest(alc.model.5, vcov = vcovHC)
 #.	We expect positive linear relationship between wine consumption and life expectancy only to a certain extent, beyond that there will be other negative implications. 
 #We need a control variable to balance that out. For example, a variable that captures negative impact on life expectancy when more calories are consumed.
 
+#create interesting subset to data
+DavidSubset = diet.data[, c("Countries", "Alcoholic.Beverages..kcal.day.", "Gross.national.income.per.capita..PPP.international...", "Life.expectancy.at.birth..years..both.sexes", "Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg.", "Obesity.prevalence..men....", "Mean.total.cholesterol..men..mg.dl...2005")]
+summary(DavidSubset)
+colnames(DavidSubset) = c("Countries", "alcohol_consumption", "GNP_capita", "life_expectancy", "blood_pressure", "obesity_pcnt", "cholesterol_mean_total")
 
+hist(DavidSubset$cholesterol_mean_total, breaks=30)
+hist(DavidSubset$blood_pressure, breaks=30)
+hist(DavidSubset$obesity_pcnt, breaks=30)
+
+
+cor(DavidSubset$alcohol_consumption, DavidSubset$GNP_capita)
+
+alcohol.gnp.scatter <- ggplot(data = DavidSubset, aes(x = GNP_capita, y = alcohol_consumption))
+alcohol.gnp.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of GNP and Alcohol Consumption per Day")
+DavidSubset
+
+# added a few health indicator variables
+davidmodel = lm(life_expectancy ~ GNP_capita + blood_pressure + obesity_pcnt + alcohol_consumption + cholesterol_mean_total, data = DavidSubset)
+summary(davidmodel)
+
+# Alcohol is strongly linked to GNP but strongly not linked to life expectancy... which is interesting.
+# Alcohol consumption may be a good proxy for being a wealthy country, thus it is a good indication of healthy life or life expectancy. 
+# This is maybe similar to the idea of looking at the size of a country's entertainment industry as a proxy for its health/success/happiness.
 
  
 
