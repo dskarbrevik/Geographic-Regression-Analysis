@@ -15,7 +15,7 @@ library(sandwich)
 
 # Justification of using our dataset: Because our data has many indicators of health (GNP, life expectancy, obesity, calorie intake, etc.) as well as data on the amount of aclohol consumption of many countries, this is a great dataset to test if alcohol consumption is a valid indirect proxy for health in the way that GNP is.
 
-###Dataset Used: World Nutrition Data
+### Dataset Used: World Nutrition Data
 #.	Dataset has one "observation per country, but more than 50 countries 
 #.	We don't have a lot of information on how this data was acquired, but a way to validate it is by crosschecking with another more documented dataset 
 #(http://data.worldbank.org/datacatalog/Healthnutritionandpopulationstatistics). 
