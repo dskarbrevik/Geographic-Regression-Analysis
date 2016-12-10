@@ -1,0 +1,632 @@
+---
+title: "W271 - Section 3 - Lab 3"
+author: "Nicholas Chen, David Skarbrevik, Rama Thamman, Johnny Yeo"
+date: "December 9, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Research Question of Interest
+### Is alcohol consumption a valid proxy/indirect indicator of a thriving country (i.e. physically healthy and/or financially healthy)? 
+While there may be many obvious indicators of physical and financial health (such as rates of certain disease, quality of air, economic stability, etc.), we explore alcohol consumption as a possible novel and unexpected proxy indicator of physical/financial country health.
+
+In media, wine consumption in particular is sometimes cited as having health benefits (http://www.telegraph.co.uk/news/health/11066516/Glassofwinewithdinnerhelpsyoulivelongerscientistsclaim.html). We are in no way positing that our analysis may support the belief that wine (or more generally, alcohol) consumption leads directly to health benefits, instead we are only interested in seeing whether alcohol consumption may be a reasonable novel, indirect indicator of health and/or financial success in a country. Our intuition is that countries with more alcohol consumption are likely more gregarious (more social events) and have more disposable income and that these properties may in turn be indirect indicators of a healthy/wealthy country. At any rate, if our analysis below supports our intuition it would not in any way prove an exact mechanism of action, as this would need to be the topic of future research.                                                                                                                                          
+# Data sources
+
+### Main data source: https://followthedata.wordpress.com/2010/03/15/food-and-health-data-set/
+
+Documentation for this dataset or it's original source could no longer be found. To offset the lack of knowledege/validation about how the data in this dataset was gathered, a more documented dataset was cross-examined to validate our dataset of interest.
+
+### Dataset used for validation: http://data.worldbank.org/data-catalog/health-nutrition-and-population-statistics
+
+Data from World Bank.
+
+# Justification for using this dataset (pros and cons)
+
+The most interesting thing about our chosen dataset is the sheer volume of variables. There are many unusual/interesting variables and data is apparently complete for 86 countries (although bottom-coding may have occured in certain instances). There are many variables relating to health such as obesity occurance, mean cholesterol, and mean blood pressure. This makes analysis via linear model building a natural choice. More specifically, we are interested in comparing alcohol/wine consumption to life expectancy (proxy for physical health) and GNP (proxy for financial health). All of these variables are captured in this dataset. Unfortunately, as previously stated, the method for how this data was gathered is not documented and although we try to validate using more established datasets, this certainly hurts the real-world applicability of our analysis.
+
+***
+
+# Exploratory Data Analysis
+
+## Univariate Analysis
+
+```{r}
+# load packages
+library(rJava)
+library(xlsxjars)
+library(xlsx)
+library(ggplot2)
+library(zoo)
+library(lmtest)
+library(car)
+library(sandwich)
+
+setwd("~/Desktop/W271_Lab3/Data")
+
+# load data of interest
+diet.data <- read.csv("diet-forcsv - Sheet 1.csv")
+
+# load data for validation purposes
+data.validation.country.mapping <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Country_Mapping")
+data.validation.life_expect <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Life Expectancy")
+data.validation.growth_rate <- read.xlsx("Data from Third Parties for Validation.xlsx", sheetName = "Population Growth Rate")
+
+
+
+#Missing values check
+na.check = sapply(diet.data, function(x) sum(is.na(x))) # check specifically for NA values
+if(sum(na.check) == 0) 
+{
+        cat("No NA values in this data.")
+} else {
+na.check
+cat("There are a total of", sum(na.check), "NAs in the data.")
+}
+
+cat("Number of rows: ",nrow(diet.data))
+cat("Number of complete cases: ",nrow(diet.data[complete.cases(diet.data),]))
+
+#There are no missing values
+```
+
+## Independent Variables
+
+### Wine consumption - Calories consumed by wine per person per day (120 Calories = about 1 glass of wine)
+
+```{r}
+#Summary statistics for variables of interest
+summary(diet.data$Wine..kcal.day.)
+sum(diet.data$Wine..kcal.day. == 0)
+```
+
+There are 32 countries with zero wine consumption. This could be because of bottom coding to cover for null values.
+
+```{r}
+wine.hist <- ggplot(data = diet.data, aes(x = Wine..kcal.day.))
+wine.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Wine Calories per Day") + labs(y = "Number of Countries")
+```
+
+### Alcohol consumption - Calories consumed per person per day
+
+```{r}
+#Alcoholic beverages calories per day
+summary(diet.data$Alcoholic.Beverages..kcal.day.)
+sum(diet.data$Alcoholic.Beverages..kcal.day. == 0)
+
+
+```
+
+Like wine, there are a lot of countries with zero or very little consumption of alcoholic beverages.
+
+```{r}
+diet.data$pure
+Alcoholic.bevs.cals.hist <- ggplot(data = diet.data, aes(x = Alcoholic.Beverages..kcal.day.))
+Alcoholic.bevs.cals.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Calories per Day from Alcoholic Beverage Consumption") + labs(y = "Number of Countries")
+
+#life expectancy at birth in years (for both male/female)
+summary(diet.data$Life.expectancy.at.birth..years..both.sexes)
+```
+
+### Systolic blood pressure (mean), adults aged 15 and above, men (mmHg)
+
+```{r}
+# Justification for using only male blood pressure (highly correlated)
+cor(diet.data$Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg.,diet.data$Systolic.blood.pressure..adults.aged.15.and.above..female..mmHg.)
+
+summary(diet.data$Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg.)
+sum(diet.data$Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg. == 0)
+
+BloodPressure.mean.hist <- ggplot(data = diet.data, aes(x = Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg.))
+BloodPressure.mean.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of mean Systolic Blood Pressure in Males") + labs(y = "Number of Countries")
+```
+
+No countries seem to be missing or bottom coded. Values seem normally distributed.
+
+### Obesity - prevelance in percentage
+
+```{r}
+# Justification for using only male blood pressure (highly correlated)
+cor(diet.data$Obesity.prevalence..men...., diet.data$Obesity.prevalence..female....)
+
+summary(diet.data$Obesity.prevalence..men....)
+sum(diet.data$Obesity.prevalence..men.... == 0)
+
+Obesity.pcnt.hist <- ggplot(data = diet.data, aes(x = Obesity.prevalence..men....))
+Obesity.pcnt.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Prevalence of Obesity by percentage") + labs(y = "Number of Countries")
+```
+
+No countries missing or bottom coded for obesity. This variable appears to have a positive skew. Might want to consider an alternative specification for it in models. Also worth noting that while obesity would not be considered a sign of health in an individual, at the country level it may be an indicator of physical health (we defined physical health by life expectancy) because it may correlate with financial wealth and other positive indicators of an otherwise physically healthy life.
+
+### Cholesterol - total mean (mg/dl) 2005
+
+```{r}
+# Justification for using only male blood pressure (highly correlated)
+cor(diet.data$Mean.total.cholesterol..men..mg.dl...2005, diet.data$Mean.total.cholesterol..female..mg.dl...2005)
+
+diet.data[diet.data$Mean.total.cholesterol..men..mg.dl...2005>230,c("Countries","Mean.total.cholesterol..men..mg.dl...2005")]
+
+summary(diet.data$Mean.total.cholesterol..men..mg.dl...2005)
+sum(diet.data$Mean.total.cholesterol..men..mg.dl...2005 == 0)
+
+Cholesterol.mean.hist <- ggplot(data = diet.data, aes(x = Mean.total.cholesterol..men..mg.dl...2005))
+Cholesterol.mean.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of mean total Cholesterol level") + labs(y = "Number of Countries")
+```
+
+No missing/bottom coded countries. Variable is mostly normally distributed.
+
+## Dependent/Outcome Variables
+
+### Life expectancy in years (from birth, both male/female)
+
+```{r}
+life.expect.all.hist <- ggplot(data = diet.data, aes(x = Life.expectancy.at.birth..years..both.sexes))
+life.expect.all.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Life Expectancy at Birth") + labs(y = "Number of Countries")
+```
+
+The life expectancy variable shows a negative skew (because no one lives to be 160).
+
+### Gross National Product (GNP)
+
+```{r}
+#GNP per capita
+summary(diet.data$Gross.national.income.per.capita..PPP.international...)
+
+#GNP histogram
+GNP.hist <- ggplot(data = diet.data, aes(x = Gross.national.income.per.capita..PPP.international...))
+GNP.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of GNP") + labs(y = "Number of Countries")
+
+```
+
+GNP also shows skew (this is normally expected for GNP).
+
+
+### Multivariate Analysis
+
+```{r}
+#Correlations
+#correlation between wine consumption and alcoholic beverage consumption per day and life expectancy at birth is quite large at .496.
+cor(diet.data$Wine..kcal.day., diet.data$Life.expectancy.at.birth..years..both.sexes)
+cor(diet.data$Alcoholic.Beverages..kcal.day., diet.data$Life.expectancy.at.birth..years..both.sexes)
+
+#look at correlation between wine / alcohol consumption and GNP to see if the above result appears to be a result of income
+#There are very high correlations between wine and alcohol consumption with GNP, both being above 0.6.
+cor(diet.data$Gross.national.income.per.capita..PPP.international..., diet.data$Wine..kcal.day.)
+cor(diet.data$Gross.national.income.per.capita..PPP.international..., diet.data$Alcoholic.Beverages..kcal.day.)
+
+#diet.data$Alcoholic.Beverages..kcal.day. > 0
+wine.gnp.scatter <- ggplot(data = diet.data, aes(x = Gross.national.income.per.capita..PPP.international..., y = Wine..kcal.day.))
+wine.gnp.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of GNP and Wine Consumption per Day")
+
+# Scatterplot for Blood Pressure vs. Life Expectancy
+bp.life.scatter <- ggplot(data = diet.data, aes(x = Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg., y =Life.expectancy.at.birth..years..both.sexes ))
+bp.life.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of life expectancy and blood pressure")
+
+# Scatterplot for Obesity vs. Life Expectancy
+Obesity.life.scatter <- ggplot(data = diet.data, aes(x = Obesity.prevalence..men...., y =Life.expectancy.at.birth..years..both.sexes ))
+Obesity.life.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of life expectancy and percent prevelance of obesity")
+
+# Scatterplot for Cholesterol vs. Life Expectancy
+Cholesterol.life.scatter <- ggplot(data = diet.data, aes(x = Mean.total.cholesterol..men..mg.dl...2005, y =Life.expectancy.at.birth..years..both.sexes ))
+Cholesterol.life.scatter + geom_point(colour = "navy") + ggtitle("Scatterplot of life expectancy and mean total cholesterol")
+
+#further analysis of correlation between wine / alcohol consumption and life expectancy at birth
+i = 52
+wine.box <- boxplot(diet.data[i], main = "Boxplot of Wine Consumtion (kcal/day)")
+df <- cbind(diet.data[i], diet.data$Countries, diet.data$Life.expectancy.at.birth..years..both.sexes)
+names(df) <- c("wine_consumption", "countries", "life_expectancy")
+ordered_df <- df[order(df[1]),]
+ordered_df[ordered_df$wine_consumption > wine.box$stats[5],] 
+```
+
+From the scatterplots of our potential physical health indicators (predictors of life expectancy), we see potential relationships from all variables (blood pressure, cholesterol and obesity). Interestingly, only blood pressure appears to have a negative correlation with blood pressure, whereas both cholesterol and obesity have potentially positive correlations with life expectancy. Though we will posit this theory often, it seems likely that these variables may be good indicators of GNP (financial health) and through GNP they may be relating to life expectancy (physical health). While on a personal level this would seem strange (as being obese certainly shouldn't increase your life span), being obese indicates you can afford food and likely have easy access to things like clean water, which if you didn't have would decrease your life expectancy much more dramatically than obesity would.
+
+Looking at the boxplot, we see countries with "outlier-level" wine consumption, and their life expectancy.
+
+Every country with high wine consumption has a life expectancy of over 70.
+
+It is important to also notice, however, that all of these countries (minus Argentina) are a part of Europe, where wine consumption is on average higher than the rest of the world. 
+
+Given these results, despite the high correlation, it's hard to tell whether we see any good indication that greater wine consumption could be a good predictor of life expectancy (physical health).
+
+***
+
+# Data Validation
+
+```{r}
+#Merge country code with validation datasets.
+data.validation.growth_rate <- merge(data.validation.growth_rate, data.validation.country.mapping[,c("Population.Growth.Rate", "Country_main_dataset")], by.x = "Country.Name", by.y = "Population.Growth.Rate")
+data.validation.life_expect <- merge(data.validation.life_expect, data.validation.country.mapping[,c("Country_Life_Expectancy", "Country_main_dataset")], by.x = "Country", by.y = "Country_Life_Expectancy")
+
+#Merge validating data into the main country dataset.
+diet.data <- merge(diet.data, data.validation.growth_rate[,c("Country_main_dataset", "Growth_rate_2000", "Growth_rate_2005", "Growth_rate_2010")], by.x = "Countries", by.y = "Country_main_dataset")
+diet.data <- merge(diet.data, data.validation.life_expect[,c("Country_main_dataset", "Life_Expectancy")], by.x = "Countries", by.y = "Country_main_dataset")
+
+#Now compare data validation sources to main dataset
+#Life expectancy
+diet.data$Life_Expectancy_pct_diff <- (diet.data$Life.expectancy.at.birth..years..both.sexes - diet.data$Life_Expectancy) / diet.data$Life.expectancy.at.birth..years..both.sexes
+
+summary(diet.data$Life_Expectancy_pct_diff)
+hist(diet.data$Life_Expectancy, main = "Data Validation Life Expectancy Distribution")
+hist(diet.data$Life.expectancy.at.birth..years..both.sexes, main = "Data Validation Original Life Expectancy Distribution")
+hist(diet.data$Life_Expectancy_pct_diff, main = "Percent Difference Life Expectancy")
+```
+
+Life expectancy in the original dataset appears to be systematically lower than the 2016 life expectancies downloaded from the CIA factbook.
+
+This makes sense given that we believe the life expectancy in the original data to be from an earlier period, likely 2000 - 2005 based on the other variables, and that we expect life expectancy to increase over time.
+
+```{r}
+Growth.rate.examination <- diet.data[,c("Countries", "Growth_rate_2000", "Growth_rate_2005", "Growth_rate_2010", "Population.annual.growth.rate....")]
+
+Growth.rate.examination$Growth_rate_pct_diff_2000 <- (Growth.rate.examination$Population.annual.growth.rate.... - Growth.rate.examination$Growth_rate_2000) / Growth.rate.examination$Population.annual.growth.rate....
+Growth.rate.examination$Growth_rate_pct_diff_2005 <- (Growth.rate.examination$Population.annual.growth.rate.... - Growth.rate.examination$Growth_rate_2005) / Growth.rate.examination$Population.annual.growth.rate....
+Growth.rate.examination$Growth_rate_pct_diff_2010 <- (Growth.rate.examination$Population.annual.growth.rate.... - Growth.rate.examination$Growth_rate_2010) / Growth.rate.examination$Population.annual.growth.rate....
+
+#Summary statistics of each growth rate
+summary(Growth.rate.examination$Population.annual.growth.rate....)
+summary(Growth.rate.examination$Growth_rate_2000)
+summary(Growth.rate.examination$Growth_rate_2005)
+summary(Growth.rate.examination$Growth_rate_2010)
+
+#Histograms of percent difference with each known year growth rate
+summary(Growth.rate.examination$Growth_rate_pct_diff_2000)
+hist(Growth.rate.examination$Growth_rate_pct_diff_2000, main = "Histogram of Growth Rate % Diff with 2000 Growth Rate")
+hist(Growth.rate.examination$Growth_rate_pct_diff_2005, main = "Histogram of Growth Rate % Diff with 2005 Growth Rate")
+hist(Growth.rate.examination$Growth_rate_pct_diff_2010, main = "Histogram of Growth Rate % Diff with 2010 Growth Rate")
+
+#Histograms of each growth rate
+hist(Growth.rate.examination$Population.annual.growth.rate...., main = "Histogram of Original Growth Rate")
+hist(Growth.rate.examination$Growth_rate_2000, main = "Histogram of 2000 Growth Rate")
+hist(Growth.rate.examination$Growth_rate_2005, main = "Histogram of 2005 Growth Rate")
+hist(Growth.rate.examination$Growth_rate_2010, main = "Histogram of 2010 Growth Rate")
+
+#Correlation between main dataset growth rate and year 2000 growth rate 
+cor(Growth.rate.examination$Population.annual.growth.rate...., Growth.rate.examination$Growth_rate_2010)
+```
+
+The population growth rate distribution from the original dataset looks the most similar to the 2000 population growth rate.
+
+This makes sense and is a good sign of data validation given that other variables appear to be measures of this time period.
+
+***
+
+# Linear Model Building
+
+### Null Hypotheses: Alcohol/wine consumption has no impact on GNP or life expectancy
+
+## Model 1 - parsimonious model - life expectancy ~ wine
+
+```{r}
+
+wine.model.1 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Wine..kcal.day., data = diet.data)
+summary(wine.model.1)
+
+par(mfrow=c(2,2))
+plot(wine.model.1)
+
+bptest(wine.model.1)
+durbinWatsonTest(wine.model.1)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan test has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(wine.model.1, vcov = vcovHC)
+```
+
+The first model shows that wine consumption at the country level has quite a strong relationship with life expectancy.
+
+The coefficient estimate for wine is .195 which is statistically significant at the p < .001 level. The statistical significance of the estimate holds when heteroskedasticity robust standard errors are used.
+
+The wine consumption variable is measured in calories, so the interpretation of this coefficient is that one additional calorie of wine consumption per day across the population is associated with a 0.19 year increase in life expectancy.
+
+A glass of wine has about 120 calories so this coeficcient indicates that on average a population that drinks one additional glass of wine per day is expected to have a life expectancy of about 22.8 years greater, all else equal.
+
+However, this interpretation relies on the assumption that there is a linear relationship between average wine consumption and population life expectancy which may or may not be true.
+
+The diagnostic residuals vs. fitted values plot shows that heteroskedasticity may be a problem. Part of this result is caused by the fact that there are so many countries where average wine consumption is zero.
+
+As a result, we may want to use the generalized alcohol consumption variable that has fewer observations of zero.
+
+The Breusch pagan test confirms that heteroskedasticity of errors is borderline problematic.
+
+The Durbin Watson test also gives a statistically significant result which means we should reject the null hypothesis of the test that the errors are not correlated. This is a bit of a strange result that we may want to look into further.
+
+Our theoretical foundation could also support the use of the generalized alcohol consumption variable as the main independent variable in the model as it may be able to extend our hypothesis to cultures where wine consumption is not common, but instead other alcoholic beverages are consumed at group meals.
+
+Despite the statistically significant coefficient estimate, there is by no means any evidence of any casual relationship between wine consumption and life expectancy at this point. 
+
+It is interesting to see that there is a relationship of some sort between the two variables, but this could be just a result of two variables affected caused by a third variable, or simply a phenomena due to chance, or any other reasonable scenario that can be thought up at this point.
+
+### Model 1.1 - Sensitivity analysis - Healthy life expectancy ~ wine 
+This analysis is to test if Healthy life expectancy is a proxy for Life expectancy.
+```{r}
+#There is a high correlation between Healthy life expectancy and Life expectancy at birth
+cor(diet.data$Healthy.life.expectancy..HALE..at.birth..years..both.sexes, diet.data$Life.expectancy.at.birth..years..both.sexes)
+
+#Start with a simple linear regression and build up from there comparing models along the way.
+wine.model.1.1 <- lm(diet.data$Healthy.life.expectancy..HALE..at.birth..years..both.sexes ~ Wine..kcal.day., data = diet.data)
+summary(wine.model.1.1)
+
+par(mfrow=c(2,2))
+plot(wine.model.1.1)
+bptest(wine.model.1.1)
+durbinWatsonTest(wine.model.1.1)
+```
+
+Outcome of the analysis is very similar to Model #1. This validates the data Healty life expectancy and Life expectancy are consistent.
+
+### Model 2 - parsimonious model using alcohol consumption- life expectancy ~ alcohol
+
+```{r}
+alc.model.1 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Alcoholic.Beverages..kcal.day., data = diet.data)
+summary(alc.model.1)
+
+par(mfrow=c(2,2))
+plot(alc.model.1)
+
+bptest(alc.model.1)
+durbinWatsonTest(alc.model.1)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan test has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.1, vcov = vcovHC)
+```
+
+The coefficient estimate for alcohol consumption is .065 indicating that for a country where average daily alcohol consumption across the population is 1 calorie higher is expected to have a higher life expectancy by .065 years, holding all else equal.
+
+This coefficient is statistically significant at p < .001 level using heteroskedasticity robust errors.
+
+Again, the diagnostic residuals vs. fitted values plot shows that heteroskedasticity may continue be a problem.
+
+The Breusch-Pagan test however yields a non-statistically significant result which means that we fail to reject the null hypothesis that the variance of the errors is stable across levels of fitted values.
+
+The Durbin-Watson test again shows that the errors are correlated. We should be sure to keep an eye on this after adding controls to the model.
+
+### Model 3 - alcohol consumption with control for GNP - life expectancy ~ alcohol + GNP
+
+```{r}
+alc.model.2 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Alcoholic.Beverages..kcal.day. + Gross.national.income.per.capita..PPP.international..., data = diet.data)
+summary(alc.model.2)
+
+par(mfrow=c(2,2))
+plot(alc.model.2)
+
+bptest(alc.model.2)
+durbinWatsonTest(alc.model.2)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.2, vcov = vcovHC)
+```
+
+This model drastically changes the impact of alcoholic beverage consumption on life expectancy.
+
+The coefficient estimate of the impact of alcoholic beverage consumption on life expectancy decreases to .006 and is no longer statistically significant.
+
+Heteroskedasticity of errors and correlation continue to be a problem.
+
+The residuals vs. fitted plot also seems to show a violation of the zero conditional mean assumption.
+
+The presence of heteroskedasticity of errors and a violation of the zero conditional mean assumption may indicate a non-linear relationship in the population.
+
+Including wealth as a control seems to have pulled away what had seemed to be a strong linear relationship between alcohol consumption and life expectancy. 
+
+This is a reasonable result, as it seems that wealth would be a key driver for both alcohol consumption and life expectancy.
+
+Adding the wealth control, therefore, reveals that alcohol consumption in an of itself may not be as strongly relate with life expectancy as previously suspected.
+
+### Model 4 - non-linear alcohol consumption with control for GNP - life expectancy ~ alcohol^2 + alcohol + GNP
+
+```{r}
+alc.model.3 <- lm(Life.expectancy.at.birth..years..both.sexes ~ I(Alcoholic.Beverages..kcal.day.^2) + Alcoholic.Beverages..kcal.day. + Gross.national.income.per.capita..PPP.international..., data = diet.data)
+summary(alc.model.3)
+
+par(mfrow=c(2,2))
+plot(alc.model.3)
+
+bptest(alc.model.3)
+durbinWatsonTest(alc.model.3)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.3, vcov = vcovHC)
+```
+
+Including a non-linear effect of alcohol consumption in the model does not improve the problems with heteroskedasticity and correlation of errors.
+
+The alcoholic beverage consumption coefficient estimates are still not significant.
+
+The residuals vs. fitted values plot shows heteroskedasticity of errors and the Breusch-Pagan test confirms the errors are heteroskedastic.
+
+Therefore, we need to be sure to use heteroskedasticity robust standard errors to assess statistical significance of the coefficient estimates in the model.
+
+The Durbin-Watson test shows that correlation remains a problem.
+
+### Model 5 - log transformation of alcohol consumption with control for GNP - life expectancy ~ log(alcohol) + GNP
+```{r}
+#First, remove observations of zero alcoholic beverage consumption so can implement a log transformation.
+diet.data.2 <- diet.data[diet.data$Alcoholic.Beverages..kcal.day. > 0, ]
+
+#Estimate the model
+alc.model.4 <- lm(Life.expectancy.at.birth..years..both.sexes ~ log(Alcoholic.Beverages..kcal.day.) + Gross.national.income.per.capita..PPP.international..., data = diet.data.2)
+summary(alc.model.4)
+
+par(mfrow=c(2,2))
+plot(alc.model.4)
+
+bptest(alc.model.4)
+durbinWatsonTest(alc.model.4)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.4, vcov = vcovHC)
+```
+
+Including a log transformation for alcoholic beverage consumption does not fix the problem of heteroskedasticity of errors as evidenced by the residuals vs. fitted values plot and the Breusch Pagan test.
+
+The Durbin Watson test also shows that correlation of errors remains a problem.
+
+### Model 6 - log transformation of alcohol consumption with control for log transformation of GNP - life expectancy ~ log(alcohol) + log(GNP)
+```{r}
+#Estimate the model
+alc.model.5 <- lm(Life.expectancy.at.birth..years..both.sexes ~ log(Alcoholic.Beverages..kcal.day.) + log(Gross.national.income.per.capita..PPP.international...), data = diet.data.2)
+summary(alc.model.5)
+
+par(mfrow=c(2,2))
+plot(alc.model.5)
+
+bptest(alc.model.5)
+durbinWatsonTest(alc.model.5)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.5, vcov = vcovHC)
+```
+
+Using a log transformation on GNP and alcohol consumption makes sense because each of these variables is positively skewed.
+
+After making these transformations, the Durbin-Watson test shows that correlated errors seems to have been solved.
+
+The residuals vs. fitted values plot shows that heteroskedasticity of errors continues to be a problem. The Breusch-Pagan test confirms this result.
+
+Using heteroskedasticity robust standard errors, the coefficients are both statistically significant.
+
+The coefficient estimate on log(alcohol consumption) is -1.271 which is statistically significant (p = .012 using heteroskedasticity robust errors).
+
+The interpretation of this coefficient is that a one percent increase in alcohol consumption corresponds with a decrease of 1.271 years in life expectancy while holding GNP equal.
+
+While this model outputs a statistically significant coefficient estimate of alcohol consumption, now its relationship with life expectancy is reversed, making it fairly suspect that there is a real meaningful relationship between the two variables. 
+
+In contrast, the wealth control, the GNP, still retained a similar relationship with life expectancy, which is consistent with its coefficient estimates in previous models.
+
+### Model 7 - life expectancy ~ GNP + alcohol consumption + blood pressure
+
+```{r}
+#Estimate the model
+alc.model.7 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Gross.national.income.per.capita..PPP.international... + Alcoholic.Beverages..kcal.day. + Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg., data = diet.data)
+summary(alc.model.7)
+
+par(mfrow=c(2,2))
+plot(alc.model.7)
+
+bptest(alc.model.7)
+durbinWatsonTest(alc.model.7)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.7, vcov = vcovHC)
+```
+
+We still see significant issues with diagnostic plots (one reason for using heteroskedastically robust standard errors).
+
+Including a control variable for life expectancy (blood pressure), we see it is statistically significant (as might be expected; with heteroskedasticity robust standard errors, p-value = 0.03451) and with an estimate of -4.27 implies that there is a negative relationship between blood pressure and life expectancy as seen in the multivariate EDA (for every mmHg increase in blood pressure we see a decrease of 4.27 years on life expectancy).
+
+We see alcohol consumption still statistically insignificant.
+
+### Model 8 - life expectancy ~ GNP + alcohol consumption + blood pressure + obesity
+
+```{r}
+#Estimate the model
+alc.model.8 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Gross.national.income.per.capita..PPP.international... + Alcoholic.Beverages..kcal.day. + Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg. + Obesity.prevalence..men...., data = diet.data)
+summary(alc.model.8)
+
+par(mfrow=c(2,2))
+plot(alc.model.8)
+
+bptest(alc.model.8)
+durbinWatsonTest(alc.model.8)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.8, vcov = vcovHC)
+```
+
+As in model 7, adding control variables has not brought significance to alcohol consumption as an estimator of life expectancy. 
+
+Obesity (newly added variable) has a p-value of 0.006325. We see that for every percentage increase in a country's prevelance of obesity, there is a 2.4 year increase in life expectancy. This positive relationship was seen in the EDA and it was noted that obesity is likely estimating financial health which in turn is estimating physical health.
+
+## Model 9 - life expectancy ~ GNP + alcohol consumption + blood pressure + obesity + cholesterol
+
+```{r}
+#Estimate the model
+alc.model.9 <- lm(Life.expectancy.at.birth..years..both.sexes ~ Gross.national.income.per.capita..PPP.international... + Alcoholic.Beverages..kcal.day. + Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg. + Obesity.prevalence..men.... + Mean.total.cholesterol..men..mg.dl...2005, data = diet.data)
+summary(alc.model.9)
+
+par(mfrow=c(2,2))
+plot(alc.model.9)
+
+bptest(alc.model.9)
+durbinWatsonTest(alc.model.9)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.9, vcov = vcovHC)
+```
+
+In this final life expectancy model with an additional control variable (cholesterol) we see, interestingly, that obesity is no longer statistically significant, however cholesterol is. On an intuitive level we can appreciate the obvious connection between cholesterol and obesity. 
+
+In interpreting the cholesterol estimator, we would say that for every mg/dl increase in cholesterol there is a 0.19 year increase in life expectancy.
+
+Also, note that the diagnostic plots look noticeably better (specifically the QQ and scale-location plots).
+
+## Model 10 - GNP ~ alcohol consumption (simple/parsimonious model)
+(note GNP is outcome variable here)
+
+```{r}
+#Estimate the model
+alc.model.10 <- lm(Gross.national.income.per.capita..PPP.international... ~ Alcoholic.Beverages..kcal.day., data = diet.data)
+summary(alc.model.10)
+
+par(mfrow=c(2,2))
+plot(alc.model.10)
+
+bptest(alc.model.10)
+durbinWatsonTest(alc.model.10)
+
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+coeftest(alc.model.10, vcov = vcovHC)
+```
+
+With alcohol consumption estimating GNP we see a statistically significant (p-value = 1.2e-10). For every daily calorie increase in alcoholic beverages we see a 94.3 PPP dollar (purchasing power parity) increase.
+
+Robust standard errors were used to help account for concern seen in the diagnostic plots. Based on the scale-location plot and residuals vs. leverage, it may be worth taking log of GNP to see if this helps with heteroskedasticity.
+
+This model illustrates that alcohol consumption is a good indicator of financial health (GNP) as would be expected from intuition and from the response we saw when GNP was added to Model 1 (simple model: life expectancy ~ alcohol consumption).
+
+## Model 11 - log(GNP) ~ alcohol consumption + life expectancy + blood pressure + obesity + cholesterol
+(note GNP is outcome variable here)
+
+```{r}
+#Estimate the model
+alc.model.11 <- lm(Gross.national.income.per.capita..PPP.international... ~ Alcoholic.Beverages..kcal.day. + Life.expectancy.at.birth..years..both.sexes+ Systolic.blood.pressure..adults.aged.15.and.above..men..mmHg. + Obesity.prevalence..men.... + Mean.total.cholesterol..men..mg.dl...2005, data = diet.data)
+summary(alc.model.11)
+
+par(mfrow=c(2,2))
+plot(alc.model.11)
+
+bptest(alc.model.11)
+durbinWatsonTest(alc.model.11)
+#Look at coefficient estimates with heteroskedasticity robust standard errors because the Breusch-Pagan teset has a marginally significant result suggesting that heteroskedasticity of errors may be a problem..
+
+coeftest(alc.model.11, vcov = vcovHC) # ignore estimate values
+exp(coeftest(alc.model.11, vcov = vcovHC))
+```
+
+Finally, we looked at GNP as an outcome variable with the variables from Model 9. We see that life expectancy is highly statistically significant (p-value  = 1.5e-05) as is alcoholic beverages (p-value = 0.00036). 
+
+Note, no other variable is statistically significant. 
+
+Also, the estimate for alcoholic beverages has decreased. In Model 10 a 1 calorie daily increase from alcoholic beverages produced a 94.3 PPP increase in GNP while in this current model a 1 calorie daily increase only produces a 49.6 PPP increase in GNP. Still a practically significant large effect.
+
+***
+
+# Concluding remarks
+
+In analyzing any of this data, it is important to remember that little to nothing is known about the origin of this data. Therefore, many large issues could exist with the way the data was gathered that would make the analysis of this data completely invalid for real world application. In a highly likely but less severe problem, it could be that the data for different variables was collected at very different time points (several years apart). Although something like a country's mean blood pressure is probably highly correlated from year to year it still represents a likely significant factor that keeps any conclusions from being causal.
+
+Moving forward, when we look at the models we see that a simple model of life expectancy estimated by alcohol consumption is statistically significant, however any model that includes GNP as an estimator causes alcohol consumption to lose significance. Alternatively, any model we created to estimate GNP has alcohol consumption as a statistically significant estimator. It seems that while the alcohol consumption of a country may be a good indication of its financial health, it is not a good indication of its physical health. However because GNP is a good indicator of life expectancy, alcohol consumption may serve as a rough indirect estimate of a country's physical health. The reason alcohol consumption is predicting GNP so well can only be speculated at this point. However an obvious reason is that alcohol is not a necessity for life and thus money spent on alcohol may be viewed as disposable income. Any country with a high disposable income seems likely to have a high GNP. In the future it may be interesting to see how other uses of disposable income predict GNP. For instance, countries with large entertainment industries.
+
+In order to make any causal analysis or claim about the relationship between alcohol consumption and life expectancy, we would have needed more than this cross sectional dataset. The most ideal situation, of course, would be to hold a randomized field experiment, where a randomly selected subset of a population of people of across all ethnic and cultural origins are given the treatment of alcohol consumption, and a longitudinal study is conducted, where the change in life expectancy between the treamtent and control groups are compared. With this dataset we fall far below that ideal of having a. subject-level granularity in dataset, and b. a research design that gives us context for understanding how the dataset was accumulated. 
+
+Outside of a field study design, having greater access to different types of data would have been helpful as well. If we were able to include more variables that act as controls to life expectancy, our models would have been able to measure the effect of alcohol consumption on life expectancy with greater accuracy. In general, any data that would plausibly affect life expectancy, or generally understood contributors to life expectancy, would be helpful to include in this model. Again, this is still not as good as having a careful designed longitudinal experiment, but it would get us closer to measuring causal effect. Some variables that would have been helpful are:
+- Exercise, possibly average minutes per week
+- Family life expectancy
+- Family blood pressure/cholesterol levels
+- Quality of public health (can be related to country GNP)
+- Quality of hygience, ie water sanitation
+
+Having some of these variables to include into our model would increase our confidence in measuring the causal impact of alcohol consumption on life expectancy, but this approach will always be in danger of ommitted variable bias.
