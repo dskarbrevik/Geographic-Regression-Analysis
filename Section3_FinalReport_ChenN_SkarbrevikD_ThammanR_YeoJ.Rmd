@@ -20,13 +20,14 @@ In media, wine consumption in particular is sometimes cited as having health ben
 
 Documentation for this dataset or it's original source could no longer be found. To offset the lack of knowledege/validation about how the data in this dataset was gathered, a more documented dataset was cross-examined to validate our dataset of interest.
 
-### Dataset used for validation: http://data.worldbank.org/data-catalog/health-nutrition-and-population-statistics
+### Dataset used for validation: 
+Life expectancy from CIA factbook (https://www.cia.gov/library/PUBLICATIONS/the-world-factbook/rankorder/rawdata_2102.txt).
 
-Data from World Bank.
+Population growth rate from World Bank (http://data.worldbank.org/indicator/SP.POP.GROW)
 
 # Justification for using this dataset (pros and cons)
 
-The most interesting thing about our chosen dataset is the sheer volume of variables. There are many unusual/interesting variables and data is apparently complete for 86 countries (although bottom-coding may have occured in certain instances). There are many variables relating to health such as obesity occurance, mean cholesterol, and mean blood pressure. This makes analysis via linear model building a natural choice. More specifically, we are interested in comparing alcohol/wine consumption to life expectancy (proxy for physical health) and GNP (proxy for financial health). All of these variables are captured in this dataset. Unfortunately, as previously stated, the method for how this data was gathered is not documented and although we try to validate using more established datasets, this certainly hurts the real-world applicability of our analysis.
+The most interesting thing about our chosen dataset is the sheer volume of variables. There are many unusual/interesting variables and data is apparently complete for 86 countries (although bottom-coding may have occured in certain instances). There are many variables relating to health such as obesity prevalence, mean cholesterol, and mean blood pressure. This makes analysis via linear model building a natural choice. More specifically, we are interested in comparing alcohol/wine consumption to life expectancy (where alcohol/wine consumption would serve as a proxy for physical health) and GNP (where alcohol/wine consumption would serve as a proxy for financial health). All of these variables are captured in this dataset. Unfortunately, as previously stated, the method for how this data was gathered is not documented and although we try to validate using datasets from reliable sources containing some of the same variables in our dataset. This certainly hurts the real-world applicability of our analysis. Based on our data validation and for the purposes of analysis, we operate under the assumption that the variables in our dataset were accurately compiled.
 
 ***
 
@@ -44,6 +45,7 @@ library(zoo)
 library(lmtest)
 library(car)
 library(sandwich)
+library(stargazer)
 
 setwd("~/Desktop/W271_Lab3/Data")
 
@@ -83,7 +85,7 @@ summary(diet.data$Wine..kcal.day.)
 sum(diet.data$Wine..kcal.day. == 0)
 ```
 
-There are 32 countries with zero wine consumption. This could be because of bottom coding to cover for null values.
+There are 32 countries with zero wine consumption. This could be because of bottom coding to cover for null values. This could cause problems later on in our analysis if there is not enough variation in wine consumption for it to serve as a useful independent variable.
 
 ```{r}
 wine.hist <- ggplot(data = diet.data, aes(x = Wine..kcal.day.))
@@ -124,7 +126,7 @@ BloodPressure.mean.hist <- ggplot(data = diet.data, aes(x = Systolic.blood.press
 BloodPressure.mean.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of mean Systolic Blood Pressure in Males") + labs(y = "Number of Countries")
 ```
 
-No countries seem to be missing or bottom coded. Values seem normally distributed.
+No countries seem to be missing or bottom coded. Values appear normally distributed.
 
 ### Obesity - prevelance in percentage
 
@@ -139,7 +141,7 @@ Obesity.pcnt.hist <- ggplot(data = diet.data, aes(x = Obesity.prevalence..men...
 Obesity.pcnt.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram of Prevalence of Obesity by percentage") + labs(y = "Number of Countries")
 ```
 
-No countries missing or bottom coded for obesity. This variable appears to have a positive skew. Might want to consider an alternative specification for it in models. Also worth noting that while obesity would not be considered a sign of health in an individual, at the country level it may be an indicator of physical health (we defined physical health by life expectancy) because it may correlate with financial wealth and other positive indicators of an otherwise physically healthy life.
+No countries missing or bottom coded for obesity. This variable appears to have a positive skew. Might want to consider log transformation or other transformation for it in models to account for the positive skew. Also worth noting that while obesity would not be considered a sign of health in an individual, at the country level it may be an indicator of physical health (we defined physical health by life expectancy) because it may correlate with financial wealth and other positive indicators of an otherwise physically healthy life.
 
 ### Cholesterol - total mean (mg/dl) 2005
 
@@ -181,7 +183,7 @@ GNP.hist + geom_histogram(fill = "navy", colour = "white") + ggtitle("Histogram 
 
 ```
 
-GNP also shows skew (this is normally expected for GNP).
+GNP also shows a positive skew (this is normally expected for GNP). We may consider using a log transformation on GNP in later models as is frequent practice in the economic literature.
 
 
 ### Multivariate Analysis
@@ -222,9 +224,9 @@ ordered_df <- df[order(df[1]),]
 ordered_df[ordered_df$wine_consumption > wine.box$stats[5],] 
 ```
 
-From the scatterplots of our potential physical health indicators (predictors of life expectancy), we see potential relationships from all variables (blood pressure, cholesterol and obesity). Interestingly, only blood pressure appears to have a negative correlation with blood pressure, whereas both cholesterol and obesity have potentially positive correlations with life expectancy. Though we will posit this theory often, it seems likely that these variables may be good indicators of GNP (financial health) and through GNP they may be relating to life expectancy (physical health). While on a personal level this would seem strange (as being obese certainly shouldn't increase your life span), being obese indicates you can afford food and likely have easy access to things like clean water, which if you didn't have would decrease your life expectancy much more dramatically than obesity would.
+From the scatterplots of our potential physical health indicators (predictors of life expectancy), we see potential relationships from all variables (blood pressure, cholesterol and obesity). Interestingly, only blood pressure appears to have a negative correlation with life expectancy, whereas both cholesterol and obesity have potentially positive correlations with life expectancy. Though we will posit this theory often, it seems likely that these variables may be good indicators of GNP (financial health) and through GNP they may be relating to life expectancy (physical health). While on an individual level this would seem strange (as being obese certainly shouldn't increase your life span), being obese indicates you can afford food and likely have easy access to things like clean water, which if you didn't have would decrease your life expectancy much more dramatically than obesity would.
 
-Looking at the boxplot, we see countries with "outlier-level" wine consumption, and their life expectancy.
+Looking at the boxplot, we see countries with "outlier-level" wine consumption, and their life expectancy. We will keep an eye out for these observations to make sure they do not have too much weight in the model.
 
 Every country with high wine consumption has a life expectancy of over 70.
 
@@ -536,7 +538,7 @@ durbinWatsonTest(alc.model.8)
 coeftest(alc.model.8, vcov = vcovHC)
 ```
 
-As in model 7, adding control variables has not brought significance to alcohol consumption as an estimator of life expectancy. 
+As in model 7, adding control variables has not brought significance to alcohol consumption as an estimator of life expectancy. This reinforces the notion that none of the variation in life expectancy seems to be accounted for by alcohol consumption after accounting for the impact of the health controls like blood pressure and obesity.
 
 Obesity (newly added variable) has a p-value of 0.006325. We see that for every percentage increase in a country's prevelance of obesity, there is a 2.4 year increase in life expectancy. This positive relationship was seen in the EDA and it was noted that obesity is likely estimating financial health which in turn is estimating physical health.
 
@@ -583,9 +585,11 @@ coeftest(alc.model.10, vcov = vcovHC)
 
 With alcohol consumption estimating GNP we see a statistically significant (p-value = 1.2e-10). For every daily calorie increase in alcoholic beverages we see a 94.3 PPP dollar (purchasing power parity) increase.
 
-Robust standard errors were used to help account for concern seen in the diagnostic plots. Based on the scale-location plot and residuals vs. leverage, it may be worth taking log of GNP to see if this helps with heteroskedasticity.
+Robust standard errors were used to help account for heteroskedasticity and potential residual correlation seen in the diagnostic plots. Based on the scale-location plot and residuals vs. leverage, it may be worth taking log of GNP to see if this helps with heteroskedasticity.
 
-This model illustrates that alcohol consumption is a good indicator of financial health (GNP) as would be expected from intuition and from the response we saw when GNP was added to Model 1 (simple model: life expectancy ~ alcohol consumption).
+This model illustrates that alcohol consumption is a good indicator of financial health (GNP) as would be expected from intuition and from the response we saw when GNP was added to Model 1 (simple model: life expectancy ~ alcohol consumption). However, as from our previous analysis of life expectancy which showed that none of the variation in life expectancy could be attributed to alcohol consumption after controlling for health factors, the high statistical significance of the coefficient for life alcohol consumption is likely the result of some unobserved factors that are correlated with both the independent (alcohol consumption) and dependent (GNP) variables in the model.
+
+This model does support our notion that alcohol consumption could likely serve as a novel proxy for wealth.
 
 ## Model 11 - log(GNP) ~ alcohol consumption + life expectancy + blood pressure + obesity + cholesterol
 (note GNP is outcome variable here)
@@ -612,21 +616,23 @@ Note, no other variable is statistically significant.
 
 Also, the estimate for alcoholic beverages has decreased. In Model 10 a 1 calorie daily increase from alcoholic beverages produced a 94.3 PPP increase in GNP while in this current model a 1 calorie daily increase only produces a 49.6 PPP increase in GNP. Still a practically significant large effect.
 
+The residuals vs. fitted values plot does still show heteroskedasticity which is confirmed by the BP  test, so we are sure to reference heteroskedasticity robust standard errors in assessing the statistical significance of the variables we have included in this model.
+
 ***
 
 # Concluding remarks
 
 In analyzing any of this data, it is important to remember that little to nothing is known about the origin of this data. Therefore, many large issues could exist with the way the data was gathered that would make the analysis of this data completely invalid for real world application. In a highly likely but less severe problem, it could be that the data for different variables was collected at very different time points (several years apart). Although something like a country's mean blood pressure is probably highly correlated from year to year it still represents a likely significant factor that keeps any conclusions from being causal.
 
-Moving forward, when we look at the models we see that a simple model of life expectancy estimated by alcohol consumption is statistically significant, however any model that includes GNP as an estimator causes alcohol consumption to lose significance. Alternatively, any model we created to estimate GNP has alcohol consumption as a statistically significant estimator. It seems that while the alcohol consumption of a country may be a good indication of its financial health, it is not a good indication of its physical health. However because GNP is a good indicator of life expectancy, alcohol consumption may serve as a rough indirect estimate of a country's physical health. The reason alcohol consumption is predicting GNP so well can only be speculated at this point. However an obvious reason is that alcohol is not a necessity for life and thus money spent on alcohol may be viewed as disposable income. Any country with a high disposable income seems likely to have a high GNP. In the future it may be interesting to see how other uses of disposable income predict GNP. For instance, countries with large entertainment industries.
+Moving forward, when we look at the models we see that a simple model of life expectancy estimated by alcohol consumption is statistically significant, however any model that includes GNP as an estimator causes the coefficient for alcohol consumption to lose statistical significance. Alternatively, in all models where GNP was the dependent variable, alcohol consumption remained a statistically significant estimator even after including various health controls. It seems that while the alcohol consumption of a country may be a good indication of its financial health, it is not a good indication of its physical health. However because GNP is a good indicator of life expectancy, alcohol consumption may serve as a rough indirect estimate of a country's physical health. The reason alcohol consumption is predicting GNP so well can only be speculated at this point. However an obvious reason is that alcohol is not a necessity for life and thus money spent on alcohol may be viewed as disposable income. Any country with a high disposable income seems likely to have a high GNP. In the future it may be interesting to see how other uses of disposable income predict GNP. For instance, countries with large entertainment industries.
 
-In order to make any causal analysis or claim about the relationship between alcohol consumption and life expectancy, we would have needed more than this cross sectional dataset. The most ideal situation, of course, would be to hold a randomized field experiment, where a randomly selected subset of a population of people of across all ethnic and cultural origins are given the treatment of alcohol consumption, and a longitudinal study is conducted, where the change in life expectancy between the treamtent and control groups are compared. With this dataset we fall far below that ideal of having a. subject-level granularity in dataset, and b. a research design that gives us context for understanding how the dataset was accumulated. 
+In order to make any causal analysis or claim about the relationship between alcohol consumption and life expectancy, we would have needed more than this cross sectional dataset. The most ideal situation, of course, would be to hold a randomized field experiment, where a randomly selected subset of a population of people of across all ethnic and cultural origins are given the treatment of alcohol consumption, and a longitudinal study is conducted, where the change in life expectancy between the treamtent and control groups are compared. With this dataset we fall far below that ideal of having a. subject-level granularity in dataset, and b. a research design that gives us context for understanding how the dataset was accumulated. Even so, our goal was not to assert a causal relationship betwen alcohol consumption and life expectancy. We just want to make clear that the models we have estimated are NOT to be interpreted causally.
 
 Outside of a field study design, having greater access to different types of data would have been helpful as well. If we were able to include more variables that act as controls to life expectancy, our models would have been able to measure the effect of alcohol consumption on life expectancy with greater accuracy. In general, any data that would plausibly affect life expectancy, or generally understood contributors to life expectancy, would be helpful to include in this model. Again, this is still not as good as having a careful designed longitudinal experiment, but it would get us closer to measuring causal effect. Some variables that would have been helpful are:
 - Exercise, possibly average minutes per week
 - Family life expectancy
 - Family blood pressure/cholesterol levels
 - Quality of public health (can be related to country GNP)
-- Quality of hygience, ie water sanitation
+- Quality of hygiene, ie water sanitation
 
 Having some of these variables to include into our model would increase our confidence in measuring the causal impact of alcohol consumption on life expectancy, but this approach will always be in danger of ommitted variable bias.
